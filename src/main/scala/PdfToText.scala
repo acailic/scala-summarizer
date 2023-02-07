@@ -33,8 +33,9 @@ object PdfToText {
       val stripper = new PDFTextStripper
       stripper.setStartPage(startPage)
       stripper.setEndPage(endPage)
-      Some(stripper.getText(pdf))
-      pdf.close()
+      val str = stripper.getText(pdf)
+      pdf.close
+      Some(str)
     } catch {
       case t: Throwable =>
         t.printStackTrace

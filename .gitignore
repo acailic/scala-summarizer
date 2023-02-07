@@ -15,3 +15,4 @@
 .bsp/
 # exclude sbt stuff
 .project/
+/output/

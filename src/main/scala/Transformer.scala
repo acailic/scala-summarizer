@@ -8,20 +8,23 @@ import org.apache.spark.sql.SparkSession
 object Transformer {
   val spark = SparkSession.builder().appName("PdfSummary").master("local").getOrCreate()
   val logger = Logger("transformer")
+  val outputDir = "/Users/aleksandarilic/Documents/github/acailic/scala-summarizer/output"
+
+  val tokensToIgnore = ">>|<<|\\[|\\]|\\(|\\)|\\.|,|:|;|\\?|!|\\\"|\\'|\\-|\\+|\\*|/|\\||&|\\^|%|\\$|\\#|@|~|`|_|=|\\{|\\}|\\t|\\n|\\r|\\s+";
   // main
   def main(args: Array[String]): Unit = {
+    // TODO: edit path, start page and end page
+    val filePath = PdfSummary.getFilePath
+    val chapterName="Chapter 1"
+    val startPage = 21
+    val endPage = 31
 
-//    val pdf = PdfSummary.getPdfContent
-//    // print info about document
-//    logger.info(s"Document schema: ${pdf.schema}")
-//    logger.info(s"Document columns: ${pdf.columns.mkString(", ")}")
-//    // display content of document
-//    logger.info("Displaying content of document")
-//    pdf.select("content").show(truncate = false)
 
+    val fileName = filePath.split("/").last.replace(".pdf", "")
+    val outputName = outputDir + "/" + fileName + "-"+startPage+"to"+endPage+".txt"
     /// create data frame from text
     val pdf = spark.createDataFrame(Seq(
-      (1, getTextFromPdf(21,31,PdfSummary.getFilePath)),
+      (1, getTextFromPdf(startPage,endPage,filePath)),
     )).toDF("id", "content")
 
     val documentAssembler = new DocumentAssembler()
@@ -29,16 +32,32 @@ object Transformer {
       .setOutputCol("documents")
 
     val t5 = T5Transformer
-      .pretrained("t5_small")
+      .pretrained("t5_small", "en")
       .setTask("summarize:")
       .setInputCols(Array("documents"))
       .setOutputCol("summaries")
+      .setMaxOutputLength(600)
+      .setIgnoreTokenIds(tokensToIgnore)
+      .setMinOutputLength(200)
+      .setDoSample(true)
+
     val pipeline = new Pipeline().setStages(Array(documentAssembler, t5))
     val model = pipeline.fit(pdf)
     val results = model.transform(pdf)
-    logger.info(s"Results schema: ${results.schema}")
-    results.select("summaries.result").show(truncate = false)
-    logger.info("Done!")
+    //results.select("summaries.result").show(truncate = false)
+    saveColumnToTextFile(results.select("summaries.result"), "result", outputName)
+    logger.info("Done! Saved to: " + outputName)
+  }
+
+
+  // save column of data frame to text file
+  def saveColumnToTextFile(df: org.apache.spark.sql.DataFrame, column: String, path: String): Unit = {
+    val arrayOfStrings = df.select(column)
+    // convert wrapped array to string
+    val collectedString = arrayOfStrings.collect().map(_.toString).mkString("\n")
+    logger.info("String to save: " + collectedString)
+    // write to file
+    reflect.io.File(path).writeAll(collectedString)
   }
 
 }
