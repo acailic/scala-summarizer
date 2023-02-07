@@ -6,7 +6,11 @@ import org.apache.spark.ml.Pipeline
 import org.apache.spark.sql.SparkSession
 
 object Transformer {
-  val spark = SparkSession.builder().appName("PdfSummary").master("local").getOrCreate()
+  val spark = SparkSession.builder().appName("PdfSummary")
+    //.config("cache", "true")
+    // set parallelism to 1 if to avoid OOM errors
+    //.config("spark.default.parallelism", 3)
+    .master("local").getOrCreate()
   val logger = Logger("transformer")
   val outputDir = "/Users/aleksandarilic/Documents/github/acailic/scala-summarizer/output"
 
@@ -21,6 +25,7 @@ object Transformer {
 
     val fileName = filePath.split("/").last.replace(".pdf", "")
     val outputName = outputDir + "/" + fileName + "-"+chapterName+".txt"
+
     /// create data frame from text
     val pdf = spark.createDataFrame(Seq(
       (1, getTextFromPdf(startPage,endPage,filePath)),
@@ -30,16 +35,14 @@ object Transformer {
       .setInputCol("content")
       .setOutputCol("documents")
 
-    val tokensToIgnore = ",:;?!\"'-+*/|&^%$#@~`_=\\t\\n\\r\\s+".map(_.toInt).toArray
     val t5 = T5Transformer
       .pretrained("t5_small", "en")
       .setTask("summarize:")
       .setInputCols(Array("documents"))
       .setOutputCol("summaries")
       .setMaxOutputLength(600)
-      .setMinOutputLength(200)
       .setDoSample(true)
-      .setIgnoreTokenIds(tokensToIgnore) // ignore tokens like . , : ; ? ! " ' - + * / | & ^ % $ # @ ~ ` _ = { } \t \n \r \s+
+      .setRepetitionPenalty(0.8)
 
     val pipeline = new Pipeline().setStages(Array(documentAssembler, t5))
     val model = pipeline.fit(pdf)
