@@ -3,3 +3,15 @@
 /project/target/
 /target/
 /target/scala-2.12/classes/
+
+# exclude all idea stuff
+.idea/
+*.iml
+*.ipr
+*.iws
+# exclude bsp stuff
+.project/
+.bloop/
+.bsp/
+# exclude sbt stuff
+.project/
